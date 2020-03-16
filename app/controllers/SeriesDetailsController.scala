@@ -3,18 +3,13 @@ package controllers
 import java.util.UUID
 
 import auth.TokenSecurity
-import com.amazonaws.auth.policy.{Policy, Resource, Statement}
-import com.amazonaws.auth.policy.Statement.Effect
-import com.amazonaws.auth.policy.actions.S3Actions
-import com.amazonaws.auth.{AWSStaticCredentialsProvider, BasicAWSCredentials, BasicSessionCredentials}
 import com.amazonaws.auth.profile.ProfileCredentialsProvider
+import com.amazonaws.auth.{AWSStaticCredentialsProvider, BasicSessionCredentials}
 import com.amazonaws.regions.Regions
-import com.amazonaws.services.cognitoidentity.{AmazonCognitoIdentityClient, AmazonCognitoIdentityClientBuilder}
+import com.amazonaws.services.cognitoidentity.AmazonCognitoIdentityClientBuilder
 import com.amazonaws.services.cognitoidentity.model.{GetCredentialsForIdentityRequest, GetOpenIdTokenForDeveloperIdentityRequest}
 import com.amazonaws.services.s3.model.{ListObjectsV2Request, ListObjectsV2Result}
 import com.amazonaws.services.s3.{AmazonS3, AmazonS3ClientBuilder}
-import com.amazonaws.services.securitytoken.model.{Credentials, GetFederationTokenRequest, GetFederationTokenResult}
-import com.amazonaws.services.securitytoken.{AWSSecurityTokenService, AWSSecurityTokenServiceClientBuilder}
 import configuration.{GraphQLConfiguration, KeycloakConfiguration}
 import graphql.codegen.AddConsignment
 import graphql.codegen.AddConsignment.addConsignment
@@ -25,10 +20,10 @@ import org.pac4j.play.scala.SecurityComponents
 import play.api.data.Form
 import play.api.data.Forms._
 import play.api.i18n.I18nSupport
-import play.api.mvc.{Action, AnyContent, Request, RequestHeader, Result}
+import play.api.mvc._
 
-import scala.jdk.CollectionConverters._
 import scala.concurrent.{ExecutionContext, Future}
+import scala.jdk.CollectionConverters._
 
 @Singleton
 class SeriesDetailsController @Inject()(val controllerComponents: SecurityComponents,
@@ -39,7 +34,7 @@ class SeriesDetailsController @Inject()(val controllerComponents: SecurityCompon
   private val secureAction = Secure("OidcClient")
   private val getSeriesClient = graphqlConfiguration.getClient[getSeries.Data, getSeries.Variables]()
   private val addConsignmentClient = graphqlConfiguration.getClient[addConsignment.Data, addConsignment.Variables]()
-  private val amazonCognitoClient = AmazonCognitoIdentityClientBuilder.standard()
+
 
   val selectedSeriesForm = Form(
     mapping(
@@ -62,52 +57,57 @@ class SeriesDetailsController @Inject()(val controllerComponents: SecurityCompon
   }
 
   def seriesDetails(): Action[AnyContent] = secureAction.async { implicit request: Request[AnyContent] =>
-    getDeveloperProviderCredentials(request)
+    testDeveloperProviderIdentityS3AccessControls(request)
     getSeriesDetails(request, Ok, selectedSeriesForm)
   }
 
-  def getDeveloperProviderCredentials(request: Request[AnyContent])(implicit requestHeader: RequestHeader) = {
+  def testDeveloperProviderIdentityS3AccessControls(request: Request[AnyContent])(implicit requestHeader: RequestHeader) = {
 
+    val amazonCognitoClient = AmazonCognitoIdentityClientBuilder.standard()
+    val testBucketName: String = "tktest-upload"
+    val cognitoUserProfileName: String = "sandbox"
+    val identityPoolId: String = "eu-west-2:f2d20d5e-ffcb-4446-b70a-579c762898ec"
+    val developerProviderName: String = "auth.tdr-integration.nationalarchives.gov.uk"
+    val cognitoIdentityName: String = "cognito-identity.amazonaws.com"
+
+    //Assume user already authenticated
     val userId: String = request.token.userId.getOrElse("")
 
-    val logins = Map("auth.tdr-integration.nationalarchives.gov.uk" -> userId).asJava
+    val developerProviderLogins = Map(developerProviderName -> userId).asJava
 
     val tokenRequest: GetOpenIdTokenForDeveloperIdentityRequest = new GetOpenIdTokenForDeveloperIdentityRequest
-    tokenRequest.setIdentityPoolId("eu-west-2:f2d20d5e-ffcb-4446-b70a-579c762898ec")
+    tokenRequest.setIdentityPoolId(identityPoolId)
     tokenRequest.setTokenDuration(900L)
-    tokenRequest.setLogins(logins)
+    tokenRequest.setLogins(developerProviderLogins)
 
     val client = amazonCognitoClient
       .withRegion(Regions.EU_WEST_2)
-      .withCredentials(new ProfileCredentialsProvider("sandbox"))
+      .withCredentials(new ProfileCredentialsProvider(cognitoUserProfileName))
       .build()
     val result = client.getOpenIdTokenForDeveloperIdentity(tokenRequest)
 
-    val cognitoLogins = Map("cognito-identity.amazonaws.com" -> result.getToken).asJava
+    val cognitoLogins = Map(cognitoIdentityName -> result.getToken).asJava
 
     val credReq: GetCredentialsForIdentityRequest = new GetCredentialsForIdentityRequest
     credReq.setIdentityId(result.getIdentityId)
     credReq.setLogins(cognitoLogins)
 
-    val tempCreds = client.getCredentialsForIdentity(credReq)
-    val tempAccessKey: String = tempCreds.getCredentials.getAccessKeyId
-    val tempSecretKey: String = tempCreds.getCredentials.getSecretKey
-    val tempSession: String = tempCreds.getCredentials.getSessionToken
-
-    println("Access Key: " + tempAccessKey)
-    println("Secret Key: " + tempSecretKey)
-    println("Session Key: " + tempSession)
+    val tempCreds = client.getCredentialsForIdentity(credReq).getCredentials
 
     val sessionCredentials: BasicSessionCredentials = new BasicSessionCredentials(
-      tempAccessKey, tempSecretKey, tempSession)
+      tempCreds.getAccessKeyId, tempCreds.getSecretKey, tempCreds.getSessionToken)
 
     val s3Client: AmazonS3 = AmazonS3ClientBuilder.standard()
         .withCredentials(new AWSStaticCredentialsProvider(sessionCredentials))
         .withRegion(Regions.EU_WEST_2)
         .build()
 
+    //Test uploading an object
+    s3Client.putObject(testBucketName, result.getIdentityId + "/thisisatest", "This is a test")
+
+    //Test listing out objects uploaded by user
     val listObjectsReq: ListObjectsV2Request = new ListObjectsV2Request()
-      .withBucketName("tktest-upload")
+      .withBucketName(testBucketName)
       .withPrefix(result.getIdentityId)
     val listResult: ListObjectsV2Result = s3Client.listObjectsV2(listObjectsReq)
 
@@ -140,5 +140,5 @@ class SeriesDetailsController @Inject()(val controllerComponents: SecurityCompon
     )
   }
 }
-case class TemporaryCredentials(accessKeyId: String, secretAccessKey: String, sessionToken: String)
+
 case class SelectedSeriesData (seriesId: String)
