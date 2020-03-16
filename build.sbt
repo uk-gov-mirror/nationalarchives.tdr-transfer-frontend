@@ -11,6 +11,10 @@ scalaVersion := "2.13.0"
 libraryDependencies += guice
 libraryDependencies += "org.scalatestplus.play" %% "scalatestplus-play" % "4.0.3" % Test
 
+libraryDependencies += "com.amazonaws" % "aws-java-sdk" % "1.11.741"
+libraryDependencies += "com.amazonaws" % "aws-java-sdk-cognitoidentity" % "1.11.741"
+libraryDependencies += "com.amazonaws" % "aws-java-sdk-s3" % "1.11.742"
+
 val playPac4jVersion = "9.0.0-RC3"
 val pac4jVersion = "4.0.0-RC3"
 val akkaVersion = "2.6.3"
