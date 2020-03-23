@@ -7,7 +7,7 @@ import com.amazonaws.auth.profile.ProfileCredentialsProvider
 import com.amazonaws.auth.{AWSStaticCredentialsProvider, BasicSessionCredentials}
 import com.amazonaws.regions.Regions
 import com.amazonaws.services.cognitoidentity.AmazonCognitoIdentityClientBuilder
-import com.amazonaws.services.cognitoidentity.model.{GetCredentialsForIdentityRequest, GetOpenIdTokenForDeveloperIdentityRequest}
+import com.amazonaws.services.cognitoidentity.model.{GetCredentialsForIdentityRequest, GetIdRequest, GetOpenIdTokenForDeveloperIdentityRequest}
 import com.amazonaws.services.s3.model.{ListObjectsV2Request, ListObjectsV2Result}
 import com.amazonaws.services.s3.{AmazonS3, AmazonS3ClientBuilder}
 import configuration.{GraphQLConfiguration, KeycloakConfiguration}
@@ -34,6 +34,13 @@ class SeriesDetailsController @Inject()(val controllerComponents: SecurityCompon
   private val getSeriesClient = graphqlConfiguration.getClient[getSeries.Data, getSeries.Variables]()
   private val addConsignmentClient = graphqlConfiguration.getClient[addConsignment.Data, addConsignment.Variables]()
 
+  private val cognitoUserProfileName: String = "sandbox"
+  private val testBucketName: String = sys.env("TEST_BUCKET_NAME")
+
+  private val amazonCognitoClient = AmazonCognitoIdentityClientBuilder.standard()
+    .withRegion(Regions.EU_WEST_2)
+    .withCredentials(new ProfileCredentialsProvider(cognitoUserProfileName))
+    .build()
 
   val selectedSeriesForm = Form(
     mapping(
@@ -57,44 +64,75 @@ class SeriesDetailsController @Inject()(val controllerComponents: SecurityCompon
 
   def seriesDetails(): Action[AnyContent] = secureAction.async { implicit request: Request[AnyContent] =>
     testDeveloperProviderIdentityS3AccessControls(request)
+    testKeycloakOIDCIdentityS3AccessControls(request)
     getSeriesDetails(request, Ok, selectedSeriesForm)
   }
 
-  def testDeveloperProviderIdentityS3AccessControls(request: Request[AnyContent])(implicit requestHeader: RequestHeader) = {
+  //noinspection ScalaStyle
+  //This function uses Keycloak as an OpenId Provider to access S3 resources via AWS Cognito Identity pool
+  def testKeycloakOIDCIdentityS3AccessControls(request: Request[AnyContent])(implicit requestHeader: RequestHeader) = {
+    val keycloakToken = request.token.bearerAccessToken.getValue
+    val logins = Map(sys.env("OIDC_PROVIDED_LOGINS_KEY") -> keycloakToken).asJava
 
-    val amazonCognitoClient = AmazonCognitoIdentityClientBuilder.standard()
-    val testBucketName: String = "tktest-upload"
-    val cognitoUserProfileName: String = "sandbox"
-    val identityPoolId: String = "eu-west-2:f2d20d5e-ffcb-4446-b70a-579c762898ec"
-    val developerProviderName: String = "auth.tdr-integration.nationalarchives.gov.uk"
-    val cognitoIdentityName: String = "cognito-identity.amazonaws.com"
+    val idTokenRequest: GetIdRequest = new GetIdRequest
+    idTokenRequest.setIdentityPoolId(sys.env("OIDC_IDENTITY_POOL_ID"))
+    idTokenRequest.setAccountId(sys.env("SANDBOX_ACCOUNT_NUMBER"))
+    idTokenRequest.setLogins(logins)
+
+    val idTokenResult = amazonCognitoClient.getId(idTokenRequest)
+
+    val tempCredentialsRequest: GetCredentialsForIdentityRequest = new GetCredentialsForIdentityRequest
+    tempCredentialsRequest.setIdentityId(idTokenResult.getIdentityId)
+    tempCredentialsRequest.setLogins(logins)
+
+    val tempCredentialsResult = amazonCognitoClient.getCredentialsForIdentity(tempCredentialsRequest)
+    val tempCredentials = tempCredentialsResult.getCredentials
+    val sessionCredentials: BasicSessionCredentials = new BasicSessionCredentials(
+      tempCredentials.getAccessKeyId, tempCredentials.getSecretKey, tempCredentials.getSessionToken)
+
+    val s3Client: AmazonS3 = AmazonS3ClientBuilder.standard()
+      .withCredentials(new AWSStaticCredentialsProvider(sessionCredentials))
+      .withRegion(Regions.EU_WEST_2)
+      .build()
+
+    //Test uploading an object
+    s3Client.putObject(testBucketName, tempCredentialsResult.getIdentityId + "/thisisanoidctest", "This is an oidc test!!!")
+
+    //Test listing out objects uploaded by user
+    val listObjectsReq: ListObjectsV2Request = new ListObjectsV2Request()
+      .withBucketName(testBucketName)
+      .withPrefix(tempCredentialsResult.getIdentityId)
+    val listResult: ListObjectsV2Result = s3Client.listObjectsV2(listObjectsReq)
+
+    println(listResult.getObjectSummaries.toString)
+  }
+
+  //noinspection ScalaStyle
+  //This function uses Keycloak as Developer Provided Identity to access S3 resources via AWS Cognito Identity pool
+  def testDeveloperProviderIdentityS3AccessControls(request: Request[AnyContent])(implicit requestHeader: RequestHeader) = {
 
     //Assume user already authenticated
     val userId: String = request.token.userId.getOrElse("")
-
-    val developerProviderLogins = Map(developerProviderName -> userId).asJava
+    val logins = Map(sys.env("DEV_PROVIDED_LOGINS_KEY") -> userId).asJava
 
     val tokenRequest: GetOpenIdTokenForDeveloperIdentityRequest = new GetOpenIdTokenForDeveloperIdentityRequest
-    tokenRequest.setIdentityPoolId(identityPoolId)
+    tokenRequest.setIdentityPoolId(sys.env("DEV_PROVIDED_IDENTITY_POOL_ID"))
     tokenRequest.setTokenDuration(900L)
-    tokenRequest.setLogins(developerProviderLogins)
+    tokenRequest.setLogins(logins)
 
-    val client = amazonCognitoClient
-      .withRegion(Regions.EU_WEST_2)
-      .withCredentials(new ProfileCredentialsProvider(cognitoUserProfileName))
-      .build()
-    val result = client.getOpenIdTokenForDeveloperIdentity(tokenRequest)
+    val result = amazonCognitoClient.getOpenIdTokenForDeveloperIdentity(tokenRequest)
 
+    val cognitoIdentityName: String = "cognito-identity.amazonaws.com"
     val cognitoLogins = Map(cognitoIdentityName -> result.getToken).asJava
 
-    val credReq: GetCredentialsForIdentityRequest = new GetCredentialsForIdentityRequest
-    credReq.setIdentityId(result.getIdentityId)
-    credReq.setLogins(cognitoLogins)
+    val tempCredentialsRequest: GetCredentialsForIdentityRequest = new GetCredentialsForIdentityRequest
+    tempCredentialsRequest.setIdentityId(result.getIdentityId)
+    tempCredentialsRequest.setLogins(cognitoLogins)
 
-    val tempCreds = client.getCredentialsForIdentity(credReq).getCredentials
+    val tempCredentials = amazonCognitoClient.getCredentialsForIdentity(tempCredentialsRequest).getCredentials
 
     val sessionCredentials: BasicSessionCredentials = new BasicSessionCredentials(
-      tempCreds.getAccessKeyId, tempCreds.getSecretKey, tempCreds.getSessionToken)
+      tempCredentials.getAccessKeyId, tempCredentials.getSecretKey, tempCredentials.getSessionToken)
 
     val s3Client: AmazonS3 = AmazonS3ClientBuilder.standard()
         .withCredentials(new AWSStaticCredentialsProvider(sessionCredentials))
