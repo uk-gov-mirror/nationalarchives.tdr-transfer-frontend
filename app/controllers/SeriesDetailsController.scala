@@ -31,7 +31,6 @@ class SeriesDetailsController @Inject()(val controllerComponents: SecurityCompon
                                         val keycloakConfiguration: KeycloakConfiguration
                                         )(implicit val ec: ExecutionContext) extends TokenSecurity with I18nSupport {
 
-  private val secureAction = Secure("OidcClient")
   private val getSeriesClient = graphqlConfiguration.getClient[getSeries.Data, getSeries.Variables]()
   private val addConsignmentClient = graphqlConfiguration.getClient[addConsignment.Data, addConsignment.Variables]()
 

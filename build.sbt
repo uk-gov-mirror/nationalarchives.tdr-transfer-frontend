@@ -6,6 +6,8 @@ version := "1.0-SNAPSHOT"
 
 lazy val root = (project in file(".")).enablePlugins(PlayScala)
 
+watchSources ++= (baseDirectory.value / "npm/src" ** "*").get
+
 scalaVersion := "2.13.0"
 
 libraryDependencies += guice
@@ -32,7 +34,7 @@ libraryDependencies ++= Seq(
   "com.softwaremill.sttp.client" %% "async-http-client-backend-future" % "2.0.0-RC9",
   "uk.gov.nationalarchives" %% "tdr-graphql-client" % "0.0.1",
   "uk.gov.nationalarchives" %% "tdr-auth-utils" % "0.0.5",
-  "uk.gov.nationalarchives" %% "tdr-generated-graphql" % "0.0.19",
+  "uk.gov.nationalarchives" %% "tdr-generated-graphql" % "0.0.24",
   "com.github.tomakehurst" % "wiremock-jre8" % "2.26.0" % Test,
   "org.mockito" % "mockito-core" % "3.3.0" % Test
 )
