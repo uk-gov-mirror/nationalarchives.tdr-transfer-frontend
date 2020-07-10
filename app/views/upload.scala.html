@@ -26,28 +26,60 @@
             </div>
         </div>
         <form id="file-upload-form" data-consignment-id="@consignmentId">
-            <div class="govuk-form-group">
-                <label class="govuk-label" for="file-selection">
-                    @Messages("upload.selectFolder")
-                </label>
-                <input type="hidden" class="file-id-data" name="file-id-data" />
-                <input type="file" id="file-selection" name="files" class="govuk-file-upload" webkitdirectory>
 
-                <details class="govuk-details" data-module="govuk-details">
-                    <summary class="govuk-details__summary">
-                        <span class="govuk-details__summary-text">
-                            @Messages("upload.fileExtensionTitle")
-                        </span>
-                    </summary>
-                    <div class="govuk-details__text">
-                        @Messages("upload.fileExtensionSummary")
+            <div class="moj-multi-file-upload">
+                <div class="moj-multi-file__uploaded-files moj-hidden">
+                    <h2 class="govuk-heading-m">Files added</h2>
+                    <div class="govuk-summary-list moj-multi-file-upload__list">
+
                     </div>
-                </details>
-                <button class="govuk-button" type="submit" data-module="govuk-button" role="button">
-                    @Messages("upload.continueLink")
-                </button>
+                </div>
+
+                <div class="moj-multi-file-upload__upload">
+
+                    <div class="govuk-form-group">
+                        <label class="govuk-label govuk-label--m" for="documents">
+                            Upload a file
+                        </label>
+
+                        <input class="govuk-file-upload moj-multi-file-upload__input" id="documents" name="documents" type="file" multiple="">
+                    </div>
+
+                    <button type="submit" class="govuk-button govuk-button--secondary moj-multi-file-upload__button" data-module="govuk-button">
+                        Upload a file or folder
+                    </button>
+
+                </div>
             </div>
+
+            <button type="submit" class="govuk-button" data-module="govuk-button">
+                Continue
+            </button>
+
         </form>
+<!--        <form id="file-upload-form" data-consignment-id="@consignmentId">-->
+<!--            <div class="govuk-form-group">-->
+<!--                <label class="govuk-label" for="file-selection">-->
+<!--                    @Messages("upload.selectFolder")-->
+<!--                </label>-->
+<!--                <input type="hidden" class="file-id-data" name="file-id-data" />-->
+<!--                <input type="file" id="file-selection" name="files" class="govuk-file-upload" webkitdirectory>-->
+
+<!--                <details class="govuk-details" data-module="govuk-details">-->
+<!--                    <summary class="govuk-details__summary">-->
+<!--                        <span class="govuk-details__summary-text">-->
+<!--                            @Messages("upload.fileExtensionTitle")-->
+<!--                        </span>-->
+<!--                    </summary>-->
+<!--                    <div class="govuk-details__text">-->
+<!--                        @Messages("upload.fileExtensionSummary")-->
+<!--                    </div>-->
+<!--                </details>-->
+<!--                <button class="govuk-button" type="submit" data-module="govuk-button" role="button">-->
+<!--                    @Messages("upload.continueLink")-->
+<!--                </button>-->
+<!--            </div>-->
+<!--        </form>-->
         <!--        Form to redirect user once upload has completed. It sends consignmentId to record processing placeholder page -->
         @form(routes.RecordsController.recordsPage(consignmentId), Symbol("id") -> "upload-data-form") { }
     </div>
