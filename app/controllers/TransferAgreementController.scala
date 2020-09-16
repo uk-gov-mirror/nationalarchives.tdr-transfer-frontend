@@ -13,6 +13,7 @@ import play.api.i18n.{I18nSupport, Lang, Langs}
 import play.api.mvc.{Action, AnyContent, Request, Result}
 import services.ApiErrorHandling.sendApiRequest
 import validation.ValidatedActions
+import configuration.GraphqlBackend._
 
 import scala.concurrent.{ExecutionContext, Future}
 

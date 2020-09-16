@@ -11,6 +11,8 @@ import graphql.codegen.types.AddConsignmentInput
 import graphql.codegen.{AddConsignment, GetConsignment, GetFileCheckProgress}
 import javax.inject.{Inject, Singleton}
 import services.ApiErrorHandling._
+import sttp.client.{NothingT, SttpBackend}
+import configuration.GraphqlBackend._
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -23,7 +25,7 @@ class ConsignmentService @Inject()(val graphqlConfiguration: GraphQLConfiguratio
   private val getConsignmentFileCheckClient = graphqlConfiguration.getClient[getFileCheckProgress.Data, getFileCheckProgress.Variables]()
 
   def consignmentExists(consignmentId: UUID,
-                        token: BearerAccessToken): Future[Boolean] = {
+                        token: BearerAccessToken)(implicit backend: SttpBackend[Future, Nothing, NothingT]): Future[Boolean] = {
     val variables: getConsignment.Variables = new GetConsignment.getConsignment.Variables(consignmentId)
 
     sendApiRequest(getConsignmentClient, getConsignment.document, token, variables)

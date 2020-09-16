@@ -16,9 +16,8 @@ object ApiErrorHandling {
                                        document: Document,
                                        token: BearerAccessToken,
                                        variables: Variables
-                                     )(implicit executionContext: ExecutionContext): Future[Data] = {
+                                     )(implicit executionContext: ExecutionContext, backend: SttpBackend[Future, Nothing, NothingT]): Future[Data] = {
 
-    implicit val backend: SttpBackend[Future, Nothing, NothingT] = AsyncHttpClientFutureBackend()
     graphQlClient.getResult(token, document, Some(variables)).map(result => {
       result.errors match {
         case Nil => result.data.get

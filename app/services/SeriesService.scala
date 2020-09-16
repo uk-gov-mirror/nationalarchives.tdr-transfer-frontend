@@ -5,7 +5,7 @@ import graphql.codegen.GetSeries.getSeries
 import javax.inject.Inject
 import services.ApiErrorHandling._
 import uk.gov.nationalarchives.tdr.keycloak.Token
-
+import configuration.GraphqlBackend._
 import scala.concurrent.{ExecutionContext, Future}
 
 class SeriesService @Inject()(val graphqlConfiguration: GraphQLConfiguration)(implicit ec: ExecutionContext) {

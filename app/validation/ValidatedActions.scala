@@ -8,6 +8,7 @@ import controllers.routes
 import play.api.i18n.I18nSupport
 import play.api.mvc.{Action, AnyContent, Request, Result}
 import services.{ConsignmentService, TransferAgreementService}
+import configuration.GraphqlBackend._
 
 import scala.concurrent.ExecutionContext
 

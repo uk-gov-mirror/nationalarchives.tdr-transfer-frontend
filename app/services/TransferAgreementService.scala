@@ -7,6 +7,7 @@ import configuration.GraphQLConfiguration
 import graphql.codegen.IsTransferAgreementComplete.{isTransferAgreementComplete => itac}
 import javax.inject.Inject
 import services.ApiErrorHandling.sendApiRequest
+import configuration.GraphqlBackend._
 
 import scala.concurrent.{ExecutionContext, Future}
 

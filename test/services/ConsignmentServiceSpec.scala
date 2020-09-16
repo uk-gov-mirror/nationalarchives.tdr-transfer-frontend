@@ -18,14 +18,13 @@ import sttp.client.{HttpError, NothingT, SttpBackend}
 import sttp.model.StatusCode
 import uk.gov.nationalarchives.tdr.error.NotAuthorisedError
 import uk.gov.nationalarchives.tdr.{GraphQLClient, GraphQlResponse}
+import configuration.GraphqlBackend._
 
 import scala.concurrent.{ExecutionContext, Future}
 
 class ConsignmentServiceSpec extends WordSpec with Matchers with MockitoSugar with BeforeAndAfterEach {
 
   implicit val ec: ExecutionContext = ExecutionContext.global
-  implicit val backend: SttpBackend[Future, Nothing, NothingT] = AsyncHttpClientFutureBackend()
-
   private val graphQlConfig = mock[GraphQLConfiguration]
   private val getConsignmentClient = mock[GraphQLClient[gc.Data, gc.Variables]]
   private val addConsignmentClient = mock[GraphQLClient[addConsignment.Data, addConsignment.Variables]]
