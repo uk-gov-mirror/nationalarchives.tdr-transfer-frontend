@@ -186,6 +186,3 @@ If you need to add a new query:
 * Add the new query to the `src/main/graphql` directory
 * Run `sbt package publishLocal`
 * Set the version for `tdr-generated-graphql` in this projects build.sbt to be the snapshot version.
-
-## Notes
-* Each environment has its own secret for the auth server. These cannot be generated inside aws in any way and so it's difficult to get them into the terraform scripts. At the moment, these are stored in a parameter store variable called /${env}/auth/secret although this may change.
