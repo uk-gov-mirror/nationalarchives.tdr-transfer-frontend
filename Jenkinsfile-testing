@@ -19,7 +19,7 @@ pipeline {
       agent {
         ecs {
           inheritFrom 'transfer-frontend'
-          taskRole 'NotATaskRole'
+          taskrole 'NotATaskRole'
           executionRole 'NotAnExecutionRole'
         }
       }
